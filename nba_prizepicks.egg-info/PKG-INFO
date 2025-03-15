@@ -1,0 +1,28 @@
+Metadata-Version: 2.2
+Name: nba_prizepicks
+Version: 0.1.0
+Summary: NBA PrizePicks Predictor with Machine Learning
+Author: Shane Janney
+Requires-Python: >=3.8
+Requires-Dist: rich>=13.7.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: pandas>=2.1.3
+Requires-Dist: numpy>=1.26.2
+Requires-Dist: scikit-learn>=1.3.2
+Requires-Dist: matplotlib>=3.8.2
+Requires-Dist: nba_api>=1.3.1
+Requires-Dist: joblib>=1.3.2
+Requires-Dist: typer>=0.9.0
+Requires-Dist: beautifulsoup4>=4.12.2
+Requires-Dist: lxml>=4.9.3
+Provides-Extra: scraper
+Requires-Dist: requests-html>=0.10.0; extra == "scraper"
+Requires-Dist: lxml_html_clean>=1.0.0; extra == "scraper"
+Provides-Extra: tests
+Requires-Dist: pytest>=7.4.3; extra == "tests"
+Requires-Dist: pytest-cov>=4.1.0; extra == "tests"
+Dynamic: author
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

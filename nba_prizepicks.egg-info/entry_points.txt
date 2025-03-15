@@ -1,0 +1,2 @@
+[console_scripts]
+nba-prizepicks = nba_prizepicks.__main__:app
