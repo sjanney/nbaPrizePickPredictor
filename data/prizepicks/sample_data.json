@@ -1,0 +1,162 @@
+[
+  {
+    "player_name": "LeBron James",
+    "team": "LAL",
+    "opponent": "BOS",
+    "projection_type": "Points",
+    "line": 26.5,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Stephen Curry",
+    "team": "GSW",
+    "opponent": "LAC",
+    "projection_type": "Points",
+    "line": 28.5,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Giannis Antetokounmpo",
+    "team": "MIL",
+    "opponent": "PHI",
+    "projection_type": "Points",
+    "line": 30.5,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Kevin Durant",
+    "team": "PHX",
+    "opponent": "DAL",
+    "projection_type": "Points",
+    "line": 28.0,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Nikola Jokic",
+    "team": "DEN",
+    "opponent": "MIN",
+    "projection_type": "Points",
+    "line": 26.0,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Jayson Tatum",
+    "team": "BOS",
+    "opponent": "LAL",
+    "projection_type": "Points",
+    "line": 27.5,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Luka Doncic",
+    "team": "DAL",
+    "opponent": "PHX",
+    "projection_type": "Points",
+    "line": 32.0,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Joel Embiid",
+    "team": "PHI",
+    "opponent": "MIL",
+    "projection_type": "Points",
+    "line": 30.0,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Trae Young",
+    "team": "ATL",
+    "opponent": "NYK",
+    "projection_type": "Points",
+    "line": 27.0,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Anthony Edwards",
+    "team": "MIN",
+    "opponent": "DEN",
+    "projection_type": "Points",
+    "line": 25.0,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "LeBron James",
+    "team": "LAL",
+    "opponent": "BOS",
+    "projection_type": "Rebounds",
+    "line": 8.5,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Stephen Curry",
+    "team": "GSW",
+    "opponent": "LAC",
+    "projection_type": "Rebounds",
+    "line": 5.5,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Giannis Antetokounmpo",
+    "team": "MIL",
+    "opponent": "PHI",
+    "projection_type": "Rebounds",
+    "line": 12.5,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Kevin Durant",
+    "team": "PHX",
+    "opponent": "DAL",
+    "projection_type": "Rebounds",
+    "line": 7.0,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Nikola Jokic",
+    "team": "DEN",
+    "opponent": "MIN",
+    "projection_type": "Rebounds",
+    "line": 13.5,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "LeBron James",
+    "team": "LAL",
+    "opponent": "BOS",
+    "projection_type": "Assists",
+    "line": 7.0,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Stephen Curry",
+    "team": "GSW",
+    "opponent": "LAC",
+    "projection_type": "Assists",
+    "line": 6.5,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Luka Doncic",
+    "team": "DAL",
+    "opponent": "PHX",
+    "projection_type": "Assists",
+    "line": 9.0,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Trae Young",
+    "team": "ATL",
+    "opponent": "NYK",
+    "projection_type": "Assists",
+    "line": 10.5,
+    "game_time": "2025-03-15T13:08:01"
+  },
+  {
+    "player_name": "Nikola Jokic",
+    "team": "DEN",
+    "opponent": "MIN",
+    "projection_type": "Assists",
+    "line": 8.5,
+    "game_time": "2025-03-15T13:08:01"
+  }
+]

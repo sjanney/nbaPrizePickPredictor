@@ -21,4 +21,5 @@ nba_prizepicks/utils/prizepicks.py
 tests/__init__.py
 tests/test_collector.py
 tests/test_predictor.py
+tests/test_prizepicks_fallback.py
 tests/test_processor.py
