@@ -912,14 +912,22 @@ class PrizePicksData:
                 console.print("[bold green]Successfully retrieved data via API![/]")
                 return api_data
                 
-            # If API fails, try CloudflareBypass if available
+            # If API fails, try the improved direct HTML parsing based on the DevZery article
+            console.print("[yellow]API access failed. Trying enhanced direct HTML parsing...[/]")
+            direct_html_data = self._enhanced_html_parsing()
+            if direct_html_data:
+                console.print("[bold green]Successfully retrieved data via enhanced HTML parsing![/]")
+                return direct_html_data
+            
+            # If direct parsing fails, try CloudflareBypass if available
             if self.bypass_server_running:
-                console.print("[yellow]API access failed. Trying CloudflareBypass server...[/]")
+                console.print("[yellow]Direct parsing failed. Trying CloudflareBypass server...[/]")
                 html_content, _ = self._bypass_cloudflare()
                 
                 if html_content:
                     # Save the HTML for analysis
                     html_path = f"{self.data_dir}/prizepicks/page_source.html"
+                    os.makedirs(os.path.dirname(html_path), exist_ok=True)
                     with open(html_path, 'w', encoding='utf-8') as f:
                         f.write(html_content)
                     
@@ -931,189 +939,15 @@ class PrizePicksData:
                         
                         # Save the scraped data
                         scraped_file = f"{self.data_dir}/prizepicks/scraped_lines.json"
+                        os.makedirs(os.path.dirname(scraped_file), exist_ok=True)
                         with open(scraped_file, 'w') as f:
                             json.dump(projections, f, indent=2)
                             
                         return projections
             
-            # Try the fallback HTML parsing method - direct parsing without embedded JSON
-            console.print("[yellow]JSON extraction failed. Trying direct HTML parsing...[/]")
-            fallback_projections = self._fallback_html_parsing()
-            if fallback_projections:
-                return fallback_projections
-            
             # If all previous methods failed, try Selenium as a last resort
             console.print("[yellow]All direct methods failed. Trying browser automation with Selenium...[/]")
-            
-            # Configure Chrome options
-            options = self._configure_chrome_options()
-            
-            # Autoinstall chromedriver if needed
-            chromedriver_autoinstaller.install()
-            
-            # Set up selenium with retry logic in case of CAPTCHA
-            max_retries = 3
-            for attempt in range(max_retries):
-                console.print(f"[blue]Browser automation attempt {attempt+1}/{max_retries}...[/]")
-                
-                try:
-                    # Initialize webdriver
-                    driver = webdriver.Chrome(options=options)
-                    driver.set_page_load_timeout(30)
-                    
-                    try:
-                        # Navigate to PrizePicks
-                        console.print(f"[blue]Navigating to {self.base_url}...[/]")
-                        driver.get(self.base_url)
-                        
-                        # Wait for page to load
-                        WebDriverWait(driver, 15).until(
-                            lambda d: d.execute_script("return document.readyState") == "complete"
-                        )
-                        
-                        # Check for CAPTCHA
-                        captcha_selectors = [
-                            ".captcha-solver", "#px-captcha", ".PressAndHold", 
-                            "[class*='captcha']", "[id*='captcha']",
-                            ".button-card", ".challenge-container"
-                        ]
-                        
-                        captcha_detected = False
-                        for selector in captcha_selectors:
-                            try:
-                                if driver.find_elements(By.CSS_SELECTOR, selector):
-                                    captcha_detected = True
-                                    console.print(f"[bold yellow]CAPTCHA detected with selector: {selector}[/]")
-                                    break
-                            except Exception:
-                                continue
-                                
-                        if captcha_detected:
-                            if self.manual_captcha:
-                                console.print("[bold yellow]CAPTCHA detected! Please solve it manually.[/]")
-                                console.print("[bold yellow]Waiting 60 seconds for you to solve the CAPTCHA...[/]")
-                                time.sleep(60)  # Wait for manual CAPTCHA solving
-                            else:
-                                console.print("[bold yellow]CAPTCHA detected but manual solving is disabled.[/]")
-                                console.print("[yellow]Trying to bypass or will use sample data.[/]")
-                                driver.quit()
-                                continue  # Try again
-                                
-                        # Wait for content to load
-                        console.print("[blue]Waiting for content to load...[/]")
-                        time.sleep(5)
-                        
-                        # Try to navigate to NBA section if available
-                        try:
-                            # Look for navigation/menu items
-                            sport_links = driver.find_elements(By.CSS_SELECTOR, 
-                                "a[href*='nba'], button:contains('NBA'), div[role='button']:contains('NBA')")
-                            
-                            if sport_links:
-                                console.print("[blue]Found NBA section, clicking...[/]")
-                                sport_links[0].click()
-                                time.sleep(3)  # Wait for section to load
-                        except Exception as nav_error:
-                            console.print(f"[yellow]Error navigating to NBA section: {str(nav_error)}[/]")
-                        
-                        # Save page source
-                        console.print("[blue]Saving page source...[/]")
-                        html_content = driver.page_source
-                        html_path = f"{self.data_dir}/prizepicks/selenium_page_source.html"
-                        with open(html_path, 'w', encoding='utf-8') as f:
-                            f.write(html_content)
-                            
-                        # Try to extract data from the HTML content using our JSON extraction method
-                        projections = self._extract_json_from_html(html_content)
-                        if projections:
-                            console.print(f"[green]Successfully extracted {len(projections)} projections from Selenium page source![/]")
-                            driver.quit()
-                            return projections
-                            
-                        # If we couldn't extract from the JSON, try direct scraping from HTML structure
-                        console.print("[yellow]Could not extract projections from JSON, trying direct HTML parsing...[/]")
-                        
-                        # Get all elements that might be player cards
-                        try:
-                            player_cards = driver.find_elements(By.CSS_SELECTOR, 
-                                "div[class*='player'], div[class*='projection'], div[class*='card']")
-                                
-                            if player_cards:
-                                console.print(f"[blue]Found {len(player_cards)} potential player cards.[/]")
-                                
-                                # Process each player card to extract information
-                                projections = []
-                                for card in player_cards:
-                                    try:
-                                        card_html = card.get_attribute("outerHTML")
-                                        card_soup = BeautifulSoup(card_html, "html.parser")
-                                        
-                                        # Try to extract player name
-                                        player_name_elem = card_soup.find(text=lambda t: t and len(t.strip()) > 3 and t.strip()[0].isupper())
-                                        if not player_name_elem:
-                                            continue
-                                            
-                                        player_name = player_name_elem.strip()
-                                        
-                                        # Try to extract line value - look for numbers
-                                        line_value = 0
-                                        number_texts = card_soup.find_all(text=lambda t: t and any(c.isdigit() for c in t))
-                                        for text in number_texts:
-                                            import re
-                                            match = re.search(r'(\d+\.?\d*)', text)
-                                            if match:
-                                                try:
-                                                    line_value = float(match.group(1))
-                                                    break
-                                                except ValueError:
-                                                    continue
-                                                    
-                                        # Create a basic projection with what we can find
-                                        projection = {
-                                            "player_name": player_name,
-                                            "team": "Unknown",  # Hard to reliably extract
-                                            "opponent": "Unknown",  # Hard to reliably extract
-                                            "projection_type": "Unknown",  # Hard to reliably extract
-                                            "line": line_value,
-                                            "game_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-                                        }
-                                        
-                                        projections.append(projection)
-                                        
-                                    except Exception as card_error:
-                                        console.print(f"[dim]Error processing card: {str(card_error)}[/]")
-                                        continue
-                                
-                                if projections:
-                                    console.print(f"[green]Successfully extracted {len(projections)} projections via direct scraping![/]")
-                                    driver.quit()
-                                    return projections
-                                    
-                        except Exception as cards_error:
-                            console.print(f"[yellow]Error finding player cards: {str(cards_error)}[/]")
-                        
-                    except TimeoutException:
-                        console.print("[yellow]Timeout waiting for page to load.[/]")
-                    except Exception as browser_error:
-                        console.print(f"[yellow]Error during browser automation: {str(browser_error)}[/]")
-                    finally:
-                        # Ensure webdriver is closed
-                        try:
-                            driver.quit()
-                        except Exception:
-                            pass
-                            
-                except Exception as driver_error:
-                    console.print(f"[bold red]Error initializing webdriver: {str(driver_error)}[/]")
-                
-                # Small delay between retries
-                if attempt < max_retries - 1:
-                    time.sleep(5)
-            
-            # If we got here, all attempts failed
-            console.print("[bold yellow]All scraping methods failed![/]")
-            console.print("[yellow]Falling back to sample data.[/]")
-            return self._get_sample_data()
+            return self._selenium_scraping()
             
         except Exception as e:
             console.print(f"[bold red]Error scraping PrizePicks data: {str(e)}[/]")
@@ -1121,32 +955,569 @@ class PrizePicksData:
             console.print("[yellow]Falling back to sample data.[/]")
             return self._get_sample_data()
 
+    def _enhanced_html_parsing(self):
+        """Enhanced HTML parsing method based on DevZery article.
+        
+        Returns:
+            List: Extracted projection data
+        """
+        try:
+            console.print("[blue]Using enhanced HTML parsing technique from DevZery...[/]")
+            
+            # Try to make a direct request with our session
+            response = self.session.get(self.base_url, headers=self.headers, timeout=15)
+            html_content = response.text
+            
+            # Save the HTML for analysis
+            html_path = f"{self.data_dir}/prizepicks/enhanced_html.html"
+            os.makedirs(os.path.dirname(html_path), exist_ok=True)
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+                
+            # Parse the HTML with BeautifulSoup
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Look for elements that might contain player projections
+            projections = []
+            
+            # The DevZery article suggests sport categories are typically found in buttons or tabs
+            # First try to find the NBA/Basketball section
+            console.print("[blue]Looking for NBA sport selection elements...[/]")
+            sport_selectors = [
+                'button[class*="sport"]', 
+                'div[role="button"][class*="sport"]',
+                'div[class*="sport-button"]',
+                'a[href*="nba"]',
+                'div[class*="tab"]',
+                'button:contains("NBA")',
+                'div:contains("NBA")'
+            ]
+            
+            nba_found = False
+            for selector in sport_selectors:
+                try:
+                    sport_elements = soup.select(selector)
+                    for element in sport_elements:
+                        text = element.get_text().strip().lower()
+                        if 'nba' in text or 'basketball' in text:
+                            console.print(f"[green]Found NBA section with selector: {selector}[/]")
+                            nba_found = True
+                            break
+                except Exception as e:
+                    console.print(f"[dim]Error with selector {selector}: {str(e)}[/]")
+            
+            console.print(f"[{'green' if nba_found else 'yellow'}]NBA section {'found' if nba_found else 'not explicitly found'} in page.[/]")
+            
+            # Look for player cards based on DevZery article structure
+            # The article suggests player cards are often in grid or flex containers
+            console.print("[blue]Searching for player projection cards...[/]")
+            
+            # Based on DevZery, player cards typically have player name, prop type, and prop value
+            card_containers = [
+                'div[class*="grid"]',
+                'div[class*="flex"]',
+                'div[class*="card"]',
+                'div[class*="player"]',
+                'div[class*="container"]'
+            ]
+            
+            player_cards = []
+            for container_selector in card_containers:
+                containers = soup.select(container_selector)
+                for container in containers:
+                    # Check if this container has children that could be player cards
+                    potential_cards = container.find_all('div', recursive=False)
+                    if len(potential_cards) >= 2:
+                        # Check if these divs look like player cards
+                        for card in potential_cards:
+                            # A player card should have a name and a number (the line)
+                            has_name = False
+                            has_number = False
+                            
+                            # Check for player name
+                            headings = card.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'b'])
+                            for heading in headings:
+                                text = heading.get_text().strip()
+                                if ' ' in text and len(text) > 3:  # Likely a name
+                                    has_name = True
+                                    break
+                            
+                            # Check for numeric value (the line)
+                            import re
+                            texts = [t for t in card.stripped_strings]
+                            for text in texts:
+                                if re.match(r'^\d+\.?\d*$', text):
+                                    has_number = True
+                                    break
+                            
+                            if has_name and has_number:
+                                player_cards.append(card)
+            
+            console.print(f"[blue]Found {len(player_cards)} potential player cards.[/]")
+            
+            for card in player_cards:
+                try:
+                    # Extract player name as suggested by DevZery
+                    player_name_elem = None
+                    
+                    # Check for header elements first - most likely to contain player name
+                    for tag in ['h1', 'h2', 'h3', 'h4', 'strong', 'b']:
+                        elements = card.find_all(tag)
+                        for elem in elements:
+                            text = elem.get_text().strip()
+                            if ' ' in text and 3 < len(text) < 30:  # Likely a name
+                                player_name_elem = elem
+                                break
+                        if player_name_elem:
+                            break
+                    
+                    # If not found in headers, try any substantial text
+                    if not player_name_elem:
+                        for elem in card.find_all(['div', 'span', 'p']):
+                            text = elem.get_text().strip()
+                            if ' ' in text and 3 < len(text) < 30 and text[0].isupper():  # Likely a name
+                                player_name_elem = elem
+                                break
+                    
+                    if not player_name_elem:
+                        continue
+                    
+                    player_name = player_name_elem.get_text().strip()
+                    console.print(f"[dim]Found player: {player_name}[/]")
+                    
+                    # Extract line value based on DevZery article
+                    line_value = 0
+                    import re
+                    
+                    # Look for standalone numbers
+                    for elem in card.find_all(['div', 'span', 'p', 'h3', 'h4']):
+                        text = elem.get_text().strip()
+                        if re.match(r'^\d+\.?\d*$', text):
+                            try:
+                                line_value = float(text)
+                                break
+                            except ValueError:
+                                continue
+                    
+                    # If not found, try patterns like "24.5"
+                    if line_value == 0:
+                        for elem in card.find_all():
+                            text = elem.get_text().strip()
+                            match = re.search(r'(\d+\.?\d*)', text)
+                            if match:
+                                try:
+                                    line_value = float(match.group(1))
+                                    break
+                                except ValueError:
+                                    continue
+                    
+                    # Extract prop type based on DevZery article
+                    prop_type = 'Unknown'
+                    prop_keywords = {
+                        'points': 'Points', 
+                        'pts': 'Points',
+                        'rebounds': 'Rebounds', 
+                        'reb': 'Rebounds',
+                        'assists': 'Assists', 
+                        'ast': 'Assists',
+                        'three': 'Three-Pointers',
+                        '3pt': 'Three-Pointers',
+                        'pra': 'PRA',
+                        'pts+reb+ast': 'PRA'
+                    }
+                    
+                    # Look for elements containing prop keywords
+                    for elem in card.find_all(['div', 'span', 'p']):
+                        text = elem.get_text().strip().lower()
+                        for keyword, standardized in prop_keywords.items():
+                            if keyword in text:
+                                prop_type = standardized
+                                break
+                        if prop_type != 'Unknown':
+                            break
+                    
+                    # Extract team/opponent information
+                    team = 'Unknown'
+                    opponent = 'Unknown'
+                    
+                    # Look for team/opponent info - often contains "vs" or "@"
+                    for elem in card.find_all(['div', 'span', 'p', 'time']):
+                        text = elem.get_text().strip()
+                        if 'vs' in text.lower():
+                            parts = text.split('vs')
+                            if len(parts) > 1:
+                                opponent = parts[1].strip().split()[0]
+                                break
+                        elif '@' in text:
+                            parts = text.split('@')
+                            if len(parts) > 1:
+                                opponent = parts[1].strip().split()[0]
+                                break
+                    
+                    # Only add valid NBA projections with line values
+                    if line_value > 0 and prop_type != 'Unknown':
+                        # Create projection object
+                        projection = {
+                            "player_name": player_name,
+                            "team": team,
+                            "opponent": opponent,
+                            "projection_type": prop_type,
+                            "line": line_value,
+                            "game_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+                        }
+                        
+                        projections.append(projection)
+                        console.print(f"[green]Added projection: {player_name} - {prop_type} {line_value}[/]")
+                
+                except Exception as card_error:
+                    console.print(f"[dim]Error processing card: {str(card_error)}[/]")
+                    continue
+            
+            # If we found projections, save and return them
+            if projections:
+                console.print(f"[bold green]Successfully extracted {len(projections)} projections using enhanced parsing![/]")
+                
+                # Save the extracted projections
+                extracted_file = f"{self.data_dir}/prizepicks/enhanced_extracted_lines.json"
+                os.makedirs(os.path.dirname(extracted_file), exist_ok=True)
+                with open(extracted_file, 'w') as f:
+                    json.dump(projections, f, indent=2)
+                
+                return projections
+            
+            console.print("[yellow]No projections found with enhanced HTML parsing.[/]")
+            return None
+            
+        except Exception as e:
+            console.print(f"[bold red]Error in enhanced HTML parsing: {str(e)}[/]")
+            console.print(f"[dim]{traceback.format_exc()}[/]")
+            return None
+
+    def _selenium_scraping(self):
+        """Scrape PrizePicks data using Selenium browser automation based on DevZery article.
+        
+        Returns:
+            List: Extracted projection data
+        """
+        # Configure Chrome options
+        options = self._configure_chrome_options()
+        
+        # Autoinstall chromedriver if needed
+        chromedriver_autoinstaller.install()
+        
+        # Set up selenium with retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            console.print(f"[blue]Browser automation attempt {attempt+1}/{max_retries} (using DevZery approach)...[/]")
+            
+            driver = None
+            try:
+                # Initialize webdriver
+                driver = webdriver.Chrome(options=options)
+                driver.set_page_load_timeout(30)
+                
+                # Navigate to PrizePicks
+                console.print(f"[blue]Navigating to {self.base_url}...[/]")
+                driver.get(self.base_url)
+                
+                # Wait for page to load
+                WebDriverWait(driver, 15).until(
+                    lambda d: d.execute_script("return document.readyState") == "complete"
+                )
+                
+                # Handle any pop-ups as suggested by DevZery
+                try:
+                    close_buttons = driver.find_elements(By.CSS_SELECTOR, 
+                        "button[class*='close'], div[class*='close'], .modal-close, .popup-close")
+                    
+                    for button in close_buttons:
+                        if button.is_displayed():
+                            console.print("[blue]Closing popup...[/]")
+                            button.click()
+                            time.sleep(1)
+                except Exception as popup_error:
+                    console.print(f"[dim]Error handling popups: {str(popup_error)}[/]")
+                
+                # Check for CAPTCHA and handle it if needed
+                captcha_detected = self._handle_captcha(driver)
+                if captcha_detected and not self.manual_captcha:
+                    console.print("[yellow]CAPTCHA detected but auto-solving failed. Will try again.[/]")
+                    if driver:
+                        driver.quit()
+                    time.sleep(5)
+                    continue
+                
+                # Find sports categories as suggested by DevZery
+                console.print("[blue]Looking for NBA/Basketball category...[/]")
+                sport_found = False
+                sport_selectors = [
+                    "a[href*='nba']", 
+                    "button:contains('NBA')", 
+                    "div[role='button']:contains('NBA')",
+                    "div[class*='sport-button']",
+                    "div[class*='tab']:contains('NBA')",
+                    "div[class*='tab']:contains('Basketball')"
+                ]
+                
+                for selector in sport_selectors:
+                    try:
+                        if ":contains(" in selector:
+                            # Use XPath for text contains since CSS doesn't support it
+                            text = selector.split(":contains('")[1].split("')")[0]
+                            xpath = f"//{selector.split(':contains')[0]}[contains(text(), '{text}')]"
+                            elements = driver.find_elements(By.XPATH, xpath)
+                        else:
+                            elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                        
+                        for element in elements:
+                            if element.is_displayed():
+                                try:
+                                    console.print(f"[green]Found NBA category, clicking...[/]")
+                                    element.click()
+                                    sport_found = True
+                                    time.sleep(3)  # Wait for category to load
+                                    break
+                                except Exception as click_error:
+                                    console.print(f"[yellow]Error clicking sport category: {str(click_error)}[/]")
+                    except Exception as selector_error:
+                        console.print(f"[dim]Error with selector {selector}: {str(selector_error)}[/]")
+                    
+                    if sport_found:
+                        break
+                
+                if not sport_found:
+                    console.print("[yellow]Could not find NBA category. Will try to extract all available projections.[/]")
+                
+                # Wait for content to load
+                console.print("[blue]Waiting for player projections to load...[/]")
+                time.sleep(5)
+                
+                # DevZery approach: Find player cards
+                console.print("[blue]Looking for player projection cards...[/]")
+                player_cards = []
+                
+                card_selectors = [
+                    "div[class*='player-card']",
+                    "div[class*='player']",
+                    "div[class*='card']",
+                    "div[class*='grid-item']",
+                    "div[class*='lineup-card']"
+                ]
+                
+                for selector in card_selectors:
+                    try:
+                        elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                        if elements:
+                            console.print(f"[green]Found {len(elements)} potential player cards with selector: {selector}[/]")
+                            player_cards.extend(elements)
+                    except Exception as e:
+                        console.print(f"[dim]Error with selector {selector}: {str(e)}[/]")
+                
+                if not player_cards:
+                    console.print("[yellow]Could not find player cards with specific selectors. Trying more general approach...")
+                    
+                    # If specific selectors fail, try a more general approach
+                    try:
+                        # Get all divs that might be containers
+                        containers = driver.find_elements(By.CSS_SELECTOR, "div[class*='container'], div[class*='wrapper'], div[class*='content']")
+                        
+                        for container in containers:
+                            try:
+                                # Check if this container has multiple children with similar structure
+                                child_divs = container.find_elements(By.TAG_NAME, "div")
+                                
+                                if len(child_divs) >= 3:
+                                    # Check if these could be player cards by looking for common elements
+                                    for div in child_divs[:3]:  # Check first few divs
+                                        # A player card would typically have a name and a number
+                                        try:
+                                            text_content = div.text
+                                            if ' ' in text_content and any(c.isdigit() for c in text_content):
+                                                player_cards.append(div)
+                                        except:
+                                            pass
+                            except:
+                                continue
+                    except Exception as container_error:
+                        console.print(f"[dim]Error finding containers: {str(container_error)}[/]")
+                
+                console.print(f"[blue]Found a total of {len(player_cards)} player cards to process.[/]")
+                
+                # Process player cards to extract data
+                projections = []
+                for card in player_cards:
+                    try:
+                        # Get the HTML of the card for easier parsing
+                        card_html = card.get_attribute('outerHTML')
+                        card_soup = BeautifulSoup(card_html, 'html.parser')
+                        
+                        # Extract player name
+                        player_name = "Unknown"
+                        name_elements = card_soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'b', 'strong'])
+                        
+                        for elem in name_elements:
+                            text = elem.get_text().strip()
+                            if ' ' in text and 3 < len(text) < 30:  # Likely a name
+                                player_name = text
+                                break
+                                
+                        if player_name == "Unknown":
+                            # Try all elements for player name
+                            for elem in card_soup.find_all(['div', 'span', 'p']):
+                                text = elem.get_text().strip()
+                                if ' ' in text and 3 < len(text) < 30 and text[0].isupper():  # Likely a name
+                                    player_name = text
+                                    break
+                        
+                        if player_name == "Unknown":
+                            continue
+                        
+                        # Extract prop value (line)
+                        line_value = 0
+                        import re
+                        
+                        # Try to find standalone number
+                        for elem in card_soup.find_all():
+                            text = elem.get_text().strip()
+                            if re.match(r'^\d+\.?\d*$', text):
+                                try:
+                                    line_value = float(text)
+                                    break
+                                except:
+                                    pass
+                        
+                        # If not found, try to find number in text
+                        if line_value == 0:
+                            all_text = card_soup.get_text()
+                            matches = re.findall(r'(\d+\.?\d*)', all_text)
+                            for match in matches:
+                                try:
+                                    value = float(match)
+                                    if 0.5 < value < 100:  # Reasonable range for prop
+                                        line_value = value
+                                        break
+                                except:
+                                    pass
+                        
+                        # Extract prop type
+                        prop_type = "Unknown"
+                        prop_keywords = {
+                            'points': 'Points', 
+                            'pts': 'Points',
+                            'rebounds': 'Rebounds', 
+                            'reb': 'Rebounds',
+                            'assists': 'Assists', 
+                            'ast': 'Assists',
+                            'three': 'Three-Pointers',
+                            '3pt': 'Three-Pointers',
+                            'pra': 'PRA',
+                            'pts+reb+ast': 'PRA'
+                        }
+                        
+                        card_text = card_soup.get_text().lower()
+                        for keyword, standardized in prop_keywords.items():
+                            if keyword in card_text:
+                                prop_type = standardized
+                                break
+                        
+                        # Only include valid NBA projections
+                        if line_value > 0 and prop_type != "Unknown" and player_name != "Unknown":
+                            projection = {
+                                "player_name": player_name,
+                                "team": "Unknown",  # Hard to reliably extract
+                                "opponent": "Unknown",  # Hard to reliably extract
+                                "projection_type": prop_type,
+                                "line": line_value,
+                                "game_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+                            }
+                            
+                            projections.append(projection)
+                            console.print(f"[green]Added projection: {player_name} - {prop_type} {line_value}[/]")
+                    
+                    except Exception as card_error:
+                        console.print(f"[dim]Error processing card: {str(card_error)}[/]")
+                        continue
+                
+                # Take a screenshot for debugging
+                screenshot_path = f"{self.data_dir}/prizepicks/screenshot_{attempt}.png"
+                try:
+                    driver.save_screenshot(screenshot_path)
+                    console.print(f"[blue]Saved screenshot to {screenshot_path}[/]")
+                except Exception as ss_error:
+                    console.print(f"[dim]Could not save screenshot: {str(ss_error)}[/]")
+                
+                # Save page source for debugging
+                html_path = f"{self.data_dir}/prizepicks/selenium_page_{attempt}.html"
+                try:
+                    html_content = driver.page_source
+                    os.makedirs(os.path.dirname(html_path), exist_ok=True)
+                    with open(html_path, 'w', encoding='utf-8') as f:
+                        f.write(html_content)
+                    console.print(f"[blue]Saved page source to {html_path}[/]")
+                except Exception as save_error:
+                    console.print(f"[dim]Could not save page source: {str(save_error)}[/]")
+                
+                # Clean up
+                if driver:
+                    driver.quit()
+                
+                # If we found projections, return them
+                if projections:
+                    # Save the projections for reference
+                    extracted_file = f"{self.data_dir}/prizepicks/selenium_extracted_lines.json"
+                    os.makedirs(os.path.dirname(extracted_file), exist_ok=True)
+                    with open(extracted_file, 'w') as f:
+                        json.dump(projections, f, indent=2)
+                    
+                    console.print(f"[bold green]Successfully extracted {len(projections)} projections with Selenium![/]")
+                    return projections
+                
+                console.print("[yellow]No projections found with Selenium approach. Will try again.[/]")
+                
+            except Exception as selenium_error:
+                console.print(f"[bold red]Error during Selenium scraping: {str(selenium_error)}[/]")
+                console.print(f"[dim]{traceback.format_exc()}[/]")
+            finally:
+                # Make sure to close the driver
+                if driver:
+                    try:
+                        driver.quit()
+                    except:
+                        pass
+            
+            # Short delay before next attempt
+            time.sleep(5)
+        
+        console.print("[bold yellow]All Selenium attempts failed.[/]")
+        console.print("[yellow]Falling back to sample data.[/]")
+        return self._get_sample_data()
+
     def _try_api_access(self):
-        """Try to access PrizePicks data via their API directly.
+        """Try to access PrizePicks data via their API directly based on DevZery guide.
         
         Returns:
             List: Projection data if successful, None otherwise
         """
         try:
-            # Try several different API endpoints that PrizePicks might use
+            # DevZery article mentions specific API endpoints to use
             api_endpoints = [
-                "https://api.prizepicks.com/projections",
-                "https://api.prizepicks.com/props",
-                "https://api.prizepicks.com/entries",
-                # Newer endpoints with filters
+                "https://api.prizepicks.com/projections?include=league,league.sport",
+                "https://api.prizepicks.com/projections?filter[league_id]=7&include=league,league.sport",  # NBA is league_id 7 according to DevZery
+                "https://api.prizepicks.com/offers?filter[leagues]=NBA&include=new_player",
+                "https://api.prizepicks.com/entries?filter[single]=true&include=offer,new_player",
                 "https://api.prizepicks.com/projections?filter[sport]=NBA",
-                "https://api.prizepicks.com/new_player/props?league=NBA&sport=basketball",
-                "https://api.prizepicks.com/projections?league=NBA"
+                "https://api.prizepicks.com/stat_projections?filter[league]=NBA",
+                "https://api.prizepicks.com/props?filter[league]=NBA"
             ]
             
-            # For proper API requests, we need headers that look legitimate
+            # DevZery recommends specific headers for API access
             api_headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
-                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
-                'Referer': 'https://app.prizepicks.com/',
                 'Origin': 'https://app.prizepicks.com',
+                'Referer': 'https://app.prizepicks.com/',
                 'Connection': 'keep-alive',
                 'Sec-Fetch-Dest': 'empty',
                 'Sec-Fetch-Mode': 'cors',
